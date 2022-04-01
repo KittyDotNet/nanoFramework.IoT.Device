@@ -4,6 +4,8 @@
 using System;
 using System.Device.Gpio;
 using System.Device.Spi;
+using System.Diagnostics;
+using System.Threading;
 
 namespace Iot.Device.IL0373
 {
@@ -13,6 +15,8 @@ namespace Iot.Device.IL0373
     public partial class IL0373 : IDisposable
     {
         private SpiDevice _spiDevice;
+        private GpioPin _ecs;
+        private GpioPin _dc;
         private SpiDevice _sramSpiDevice;
         private GpioPin _busy_pin;
 
@@ -33,12 +37,18 @@ namespace Iot.Device.IL0373
         public bool InvertRed { get; set; } = true;
 
         /// <summary>
-        /// Creates a IL0373 Device given a <see paramref="spiDevice" /> to communicate over and the
-        /// number of devices that are cascaded.
+        /// Creates a IL0373 Device on <see paramref="spiDevice" /> to communicate over.
         /// </summary>
-        public IL0373(SpiDevice spiDevice,int width, int height,GpioPin BusyPin = null, SpiDevice ramBuffer = null, RotationType rotation = RotationType.None)
+        /// <param name="spiDevice">The main IL0373 spi device, do not include CS pin</param>
+        /// <param name="DisplaySelectPin">The Display Cable Select pin Gpio device</param>
+        /// <param name="DataCommandPin">The Command/Data transfer select pin Gpio device</param>
+        /// <param name="BusyPin">The Busy/Wait pin Gpio device</param>
+        public IL0373(SpiDevice spiDevice,GpioPin DisplaySelectPin, GpioPin DataCommandPin, int width, int height,GpioPin BusyPin = null, SpiDevice ramBuffer = null, RotationType rotation = RotationType.None)
         {
             _spiDevice = spiDevice ?? throw new ArgumentNullException(nameof(spiDevice));
+            _ecs = DisplaySelectPin ?? throw new ArgumentNullException(nameof(DisplaySelectPin)); ;
+            _dc = DataCommandPin ?? throw new ArgumentNullException(nameof(DataCommandPin));
+            _busy_pin = BusyPin;
             _sramSpiDevice = ramBuffer;
             Rotation = rotation;
             uint buffer_size = ((uint)width * (uint)height) / 8;
@@ -49,9 +59,10 @@ namespace Iot.Device.IL0373
         /// <summary>
         /// Wait for busy signal to end.
         /// </summary>
-        void busy_wait()
+        /// <param name="WaitTime">Wait for busy pin, or timeout. 0 = use default</param>
+        void WaitForCompletion(int WaitTime = 0)
         {
-            // Serial.print("Waiting...");
+            Debug.WriteLine("Waiting...");
             if (_busy_pin != null)
             {
                 while (_busy_pin.Read() == PinValue.High)
@@ -59,11 +70,11 @@ namespace Iot.Device.IL0373
                     System.Threading.Thread.Sleep(10); // wait for busy high
                 }
             }
+            else if(WaitTime > 0)
+                Thread.Sleep(WaitTime);
             else
-            {
                 System.Threading.Thread.Sleep(BusyWaitTime);
-            }
-            // Serial.println("OK!");
+            Debug.WriteLine("OK!");
         }
 #if DEBUG
         /// <summary>
@@ -78,8 +89,55 @@ namespace Iot.Device.IL0373
         {
             _spiDevice.ConnectionSettings.ClockFrequency = IL0373.SpiClockFrequency;
             _spiDevice.ConnectionSettings.Mode = IL0373.SpiMode;
-            _spiDevice.Write(IL0398DefaultInitCode);
+            _ecs.SetPinMode(PinMode.Output);
+            _dc.SetPinMode(PinMode.Output);
+            commandList(IL0398DefaultInitCode);
+        }
 
+        /// <summary>
+        /// Send a list of commands to the Controller.
+        /// </summary>
+        /// <param name="init_code">Byte array containing command list and parameters.
+        /// Format: Command, Arguement Count, Arguements... Ex: IL0373Commands.PANEL_SETTING, 1, 0xCF, IL0373Commands.CDI, 1, 0x37
+        /// 0xFF is "WaitForCompletion" Command with the next byte being a delay, for if the busy pin is not set
+        /// 0xFE Optionally signals the end of list, for Arduino_EPD library compatibility
+        /// </param>
+        private void commandList(byte[] init_code)
+        {
+            for (int index = 0;index < init_code.Length;index++)
+            {
+                byte cmd = init_code[index];
+                if (cmd == 0xFE) 
+                    break;
+                byte num_args = init_code[++index];
+                if (cmd == 0xFF)
+                {
+                    WaitForCompletion(num_args);
+                    continue;
+                }
+
+                var buf = new byte[num_args];
+                for (int i = 0; i < num_args; i++)
+                    buf[i] = init_code[++index];
+
+                SendCommand(cmd, buf);
+            }
+        }
+        /// <summary>
+        /// Sends a command to the display
+        /// </summary>
+        /// <param name="command">The byte command to send. IL0373Commands has presets</param>
+        /// <param name="data">The command arguements to send</param>
+        private void SendCommand(byte command, byte[] data)
+        {
+            Debug.WriteLine("Sending Command: 0x" + command.ToString("X"));
+            _ecs.Write(PinValue.High);
+            _dc.Write(PinValue.Low);
+            _ecs.Write(PinValue.Low);
+            _spiDevice.WriteByte(command);
+            _dc.Write(PinValue.High);
+            _spiDevice.Write(data);
+            _ecs.Write(PinValue.High);
         }
 
         /// <summary>
@@ -87,18 +145,10 @@ namespace Iot.Device.IL0373
         /// </summary>
         public void DrawAPancake()
         {
+            Debug.WriteLine("(((((~) < Pancakes with Syrup");
             throw new NotImplementedException();
         }
 
-        /// <summary>
-        ///  begin communication with and set up the display.
-        /// </summary>
-        /// <param name="reset">if true the reset pin will be toggled.</param>
-
-        public void begin(bool reset)
-        {
-
-        }
         /// <summary>
         /// Write data do the spi device.
         /// </summary>
