@@ -31,7 +31,7 @@ SpiConnectionSettings connectionSettings = new(1,27)
 using SpiDevice spi = SpiDevice.Create(connectionSettings);
 using GpioPin DataCommandPin = gpioController.OpenPin(33);
 using GpioPin DisplaySelectPin = gpioController.OpenPin(15);
-using IL0373 devices = new(spi,DataCommandPin, DisplaySelectPin, 100,100);
+using IL0373 devices = new(spi,DataCommandPin, DisplaySelectPin, 296, 128);
 // initialize the devices
 devices.Init();
 

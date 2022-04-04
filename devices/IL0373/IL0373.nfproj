@@ -30,6 +30,7 @@
   <Import Project="$(NanoFrameworkProjectSystemPath)NFProjectSystem.props" Condition="Exists('$(NanoFrameworkProjectSystemPath)NFProjectSystem.props')" />
   <ItemGroup>
     <Compile Include="constants.cs" />
+    <Compile Include="EPD.cs" />
     <Compile Include="IL0373.cs" />
     <None Include="packages.config" />
     <None Include="README.md" />

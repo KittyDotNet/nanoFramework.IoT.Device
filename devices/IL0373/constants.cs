@@ -14,10 +14,12 @@ namespace Iot.Device.IL0373
          POWER_ON_MEASURE = 0x05,
          BOOSTER_SOFT_START = 0x06,
          DEEP_SLEEP = 0x07,
-         DTM1 = 0x10,
+        /// <summary>Writes black buffer</summary>
+        DTM1 = 0x10,
          DATA_STOP = 0x11,
          DISPLAY_REFRESH = 0x12,
-         DTM2 = 0x13,
+        /// <summary>Writes color buffer</summary>
+        DTM2 = 0x13,
          PDTM1 = 0x14,
          PDTM2 = 0x15,
          PDRF = 0x16,
@@ -42,11 +44,6 @@ namespace Iot.Device.IL0373
         public const int SpiClockFrequency = 4000000;
 
         /// <summary>
-        /// Wait timer for when busy pin not used
-        /// </summary>
-        private const int BusyWaitTime = 500;
-
-        /// <summary>
         /// IL0373 SPI Mode
         /// </summary>
         public const SpiMode SpiMode = System.Device.Spi.SpiMode.Mode0;
@@ -65,9 +62,11 @@ namespace Iot.Device.IL0373
             (byte)IL0373Commands.PLL, 1, 0x29,
             (byte)IL0373Commands.VCM_DC_SETTING, 1, 0x0A,
             0xFF, 20,
-            (byte)IL0373Commands.DISPLAY_REFRESH,0,
-            0xFF,100,
+            //(byte)IL0373Commands.DISPLAY_REFRESH,0,
+            //0xFF,100,
             0xFE
         };
+
+        
     }
 }
